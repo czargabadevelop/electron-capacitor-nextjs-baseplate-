@@ -1,93 +1,163 @@
 # mobile-software
 
+One web codebase, three targets:
 
+| Target    | Runtime                                  |
+| --------- | ---------------------------------------- |
+| Web       | Next.js 16 (App Router) + Tailwind CSS 4 |
+| Desktop   | Electron                                 |
+| Mobile    | Capacitor (Android + iOS)                |
 
-## Getting started
+The app is built as a **static export** (`output: "export"` → `out/`) so the desktop and
+mobile shells can both load the exact same bundle.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Requirements
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- Node.js 20+ (developed on Node 24)
+- Desktop: nothing extra, Electron ships with the dev dependencies
+- Android: Android Studio + SDK (JDK 17+)
+- iOS: Xcode (macOS only)
 
-## Add your files
+```bash
+npm install
+```
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Develop (web)
+
+```bash
+npm run dev     # http://localhost:3000
+npm run lint
+```
+
+## Compile — Desktop (Electron)
+
+Desktop builds are driven by npm scripts; nothing outside the repo is needed.
+
+```bash
+npm run electron:dev     # Next dev server + Electron window, with HMR
+npm run electron:start   # production build (out/) + Electron window
+```
+
+`electron:start` runs `next build` and then launches Electron against `out/`. There is no
+installer/packaging step yet — for a distributable you would add `electron-builder` (or
+`@electron-forge/cli`), which needs the app icons described further down.
+
+## Compile — Mobile (Capacitor)
+
+Mobile needs the native toolchains, so the commands are split from the desktop ones.
+Extra packages beyond Node are required; see [Requirements](#requirements).
+
+### Android
+
+```bash
+npm run mobile:add:android   # one-off: generates android/
+npm run mobile:sync          # after every web change: build out/ + copy into android/
+npm run mobile:android       # open android/ in Android Studio, then Run ▶
+```
+
+Build from the terminal instead of the IDE:
+
+```bash
+npx cap run android            # build and deploy to a connected device/emulator
+npx cap build android          # release build (needs a signing config)
+```
+
+### iOS
+
+```bash
+npm run mobile:add:ios       # one-off: generates ios/ (macOS only)
+npm run mobile:sync
+npm run mobile:ios           # open ios/ in Xcode, then Run ▶
+```
+
+```bash
+npx cap run ios
+npx cap build ios
+```
+
+The native projects are generated on demand and are not committed. Change `appId` /
+`appName` in `capacitor.config.ts` before publishing.
+
+## App icons and splash screens (resources)
+
+Icons and splashes are generated with `@capacitor/assets` (already a dev dependency).
+Put the source images in `assets/` at the repo root, using these exact names:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/dev2326/mobile-software.git
-git branch -M main
-git push -uf origin main
+assets/
+├── icon-only.png        # 1024×1024 — square app icon
+├── icon-foreground.png  # 1024×1024 — Android adaptive icon foreground
+├── icon-background.png  # 1024×1024 — Android adaptive icon background
+├── splash.png           # 2732×2732 — light splash
+└── splash-dark.png      # 2732×2732 — dark splash
 ```
 
-## Integrate with your tools
+PNG or JPG, at least those sizes. Then generate:
 
-* [Set up project integrations](https://gitlab.com/dev2326/mobile-software/-/settings/integrations)
+```bash
+npm run mobile:assets                       # all platforms
+npx capacitor-assets generate --android     # Android only
+npx capacitor-assets generate --ios         # iOS only
+npx capacitor-assets generate --pwa         # web manifest + icons
+npx capacitor-assets generate --asset-path <dir>   # source images somewhere else
+```
 
-## Collaborate with your team
+Output goes to `android/app/src/main/res/` and `ios/App/App/Assets.xcassets/`, so the
+native project has to exist first (`mobile:add:android` / `mobile:add:ios`). With no
+platform generated, only `--pwa` produces files.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Notes:
 
-## Test and Deploy
+- Android 12+ ignores the full-bleed splash image and shows the adaptive icon on a solid
+  background instead, so `icon-foreground.png` / `icon-background.png` matter most there.
+- `--pwa` does not produce the desktop icon; Electron packaging needs its own icon file.
 
-Use the built-in continuous integration in GitLab.
+## Scripts reference
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+| Script                       | What it does                                    |
+| ---------------------------- | ----------------------------------------------- |
+| `npm run dev`                | Next.js dev server on http://localhost:3000     |
+| `npm run build`              | Static export into `out/`                       |
+| `npm run lint`               | ESLint (Next.js + TypeScript rules)             |
+| `npm run electron:dev`       | Next dev server + Electron window with HMR      |
+| `npm run electron:start`     | Production build + Electron window              |
+| `npm run mobile:add:android` | Generate the Android project (`android/`)       |
+| `npm run mobile:add:ios`     | Generate the iOS project (`ios/`)               |
+| `npm run mobile:sync`        | Build the export and copy it into the platforms |
+| `npm run mobile:assets`      | Generate app icons and splash screens           |
+| `npm run mobile:android`     | Open the Android project in Android Studio      |
+| `npm run mobile:ios`         | Open the iOS project in Xcode                   |
 
-***
+## Desktop (Electron) internals
 
-# Editing this README
+`electron/main.mjs` is the main process:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- In dev it loads the Next dev server (`ELECTRON_START_URL`, set by `electron:dev`).
+- Otherwise it serves `out/` through a custom `app://bundle/` scheme, which keeps the
+  absolute `/_next/...` asset URLs and client-side routing working.
+- The window runs sandboxed with `contextIsolation` on and `nodeIntegration` off, and it
+  has **no File/Edit/View/Window menu bar** (`Menu.setApplicationMenu(null)`).
+- Relative links open in the system browser instead of new Electron windows.
 
-## Suggestions for a good README
+Add IPC by introducing a `preload` script (`webPreferences.preload`) when you need
+Node access from the renderer.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Project structure
 
-## Name
-Choose a self-explaining name for your project.
+```
+src/app/            Next.js App Router pages, layout and global styles
+electron/main.mjs   Electron main process
+capacitor.config.ts Capacitor (Android/iOS) configuration
+next.config.ts      Static export + Tailwind/Turbopack config
+public/             Static assets
+assets/             Icon/splash sources for @capacitor/assets (create when needed)
+out/                Build output consumed by Electron and Capacitor
+android/ ios/       Generated native projects (not committed)
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Caveat: static export
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Because the same bundle runs inside a WebView and an Electron window, server-only
+Next.js features are unavailable: Route Handlers that read the request, cookies,
+rewrites/redirects/headers, Server Actions, ISR, draft mode and the default image
+optimizer. Build-time data fetching in Server Components still works.
