@@ -120,16 +120,70 @@ npm run build   # static export into out/
 
 Desktop builds are driven entirely by npm scripts; nothing outside the repo is needed.
 
+### Development
+
 ```bash
 npm run electron:dev     # Next dev server + Electron window, with HMR
 npm run electron:start   # production build (out/) + Electron window
 ```
 
-`electron:start` runs `next build` and then launches Electron against `out/`. There is no
-installer/packaging step yet — for a distributable you would add
-[`electron-builder`](https://www.electron.build) or
-[`@electron-forge/cli`](https://www.electronforge.io), which needs the app icons described
-[below](#app-icons-and-splash-screens).
+### Distributable installers (electron-builder)
+
+`electron-builder` is configured via `electron-builder.yml`. It packages the static export
+(`out/`) into platform-native installers.
+
+```bash
+# Build for current platform (unpacked, for testing)
+npm run electron:pack
+
+# Build installers for all supported platforms
+npm run electron:dist
+
+# Build only for specific platforms
+npm run electron:dist:win    # Windows: .exe (NSIS) + .exe (portable)
+npm run electron:dist:mac    # macOS: .dmg + .zip
+npm run electron:dist:linux  # Linux: .AppImage + .deb
+```
+
+Output goes to `dist/`. Each platform target produces:
+
+| Platform | Formats |
+|----------|---------|
+| Windows  | NSIS installer (`.exe`), portable (`.exe`) |
+| macOS    | DMG (`.dmg`), ZIP (`.zip`) |
+| Linux    | AppImage (`.AppImage`), DEB (`.deb`) |
+
+**Requirements for signed/notarized builds:**
+
+- **Windows:** Code signing certificate (set `CSC_LINK`, `CSC_KEY_PASSWORD` env vars)
+- **macOS:** Apple Developer ID, notarization (set `APPLE_ID`, `APPLE_ID_PASS`, `APPLE_TEAM_ID`)
+- **Linux:** GPG key for `.deb` signing (optional)
+
+See [electron-builder code signing docs](https://www.electron.build/code-signing) for details.
+
+### App icon for Electron
+
+Electron needs its own icon file (separate from Capacitor assets). Add to repo root:
+
+```
+assets/
+├── icon.ico      # Windows (256×256 embedded)
+├── icon.icns     # macOS (generated from 1024×1024 PNG)
+└── icon.png      # Linux (512×512)
+```
+
+Then reference in `electron-builder.yml`:
+
+```yaml
+win:
+  icon: assets/icon.ico
+mac:
+  icon: assets/icon.icns
+linux:
+  icon: assets/icon.png
+```
+
+You can generate these from a single 1024×1024 PNG using tools like `electron-icon-builder` or online converters.
 
 ## Mobile (Capacitor)
 
@@ -210,6 +264,11 @@ Notes:
 | `npm run lint`               | ESLint (Next.js + TypeScript rules)             |
 | `npm run electron:dev`       | Next dev server + Electron window with HMR      |
 | `npm run electron:start`     | Production build + Electron window              |
+| `npm run electron:pack`      | Build unpacked Electron app (current platform)  |
+| `npm run electron:dist`      | Build installers for all platforms              |
+| `npm run electron:dist:win`  | Build Windows installers (`.exe`)               |
+| `npm run electron:dist:mac`  | Build macOS installers (`.dmg`, `.zip`)         |
+| `npm run electron:dist:linux`| Build Linux installers (`.AppImage`, `.deb`)    |
 | `npm run mobile:add:android` | Generate the Android project (`android/`)       |
 | `npm run mobile:add:ios`     | Generate the iOS project (`ios/`)               |
 | `npm run mobile:sync`        | Build the export and copy it into the platforms |
@@ -222,11 +281,13 @@ Notes:
 ```
 src/app/            Next.js App Router pages, layout and global styles
 electron/main.mjs   Electron main process
+electron-builder.yml Electron packaging configuration
 capacitor.config.ts Capacitor (Android/iOS) configuration
 next.config.ts      Static export + Tailwind/Turbopack config
 public/             Static assets
-assets/             Icon/splash sources for @capacitor/assets (create when needed)
+assets/             Icon/splash sources for @capacitor/assets & Electron (create when needed)
 out/                Build output consumed by Electron and Capacitor (generated)
+dist/               Packaged installers from electron-builder (generated)
 android/ ios/       Generated native projects (not committed)
 ```
 
